@@ -51,7 +51,7 @@ fig, axes = plt.subplots(nrows=len(df.columns), ncols=1, figsize=(8, 6 * len(df.
 
 # Plot histograms using matplotlib and seaborn
 for i, column in enumerate(df.columns):
-    sns.histplot(df[column], ax=axes[i], kde=True)
+    sns.histplot(df[column], ax=axes[i  ], kde=True)
     axes[i].set_title(f"Histogram for {column}")
 
 # Adjust layout and spacing
