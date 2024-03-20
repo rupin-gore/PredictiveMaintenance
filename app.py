@@ -1,63 +1,115 @@
-# predictive_maintenance_app.py
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
 
-def main():
-    st.title("Predictive Maintenance App")
+class CustomLabelEncoder:
+    def __init__(self):
+        self.label_mapping = {}
 
-def load_data(file_path):
-    try:
-        df = pd.read_csv(file_path)
-        return df
-    except Exception as e:
-        st.error(f"Error loading data: {e}")
-        return None
+    def fit(self, labels):
+        unique_labels = set(labels)
+        self.label_mapping = {label: i for i, label in enumerate(unique_labels)}
 
-# Load your dataset
-data_path = "machininfo.csv"
-df = load_data(data_path)
+    def transform(self, labels):
+        return [self.label_mapping[label] for label in labels]
 
-if df is not None:
-    # Display the dataset
-    st.subheader("Dataset Preview")
-    st.dataframe(df.style.highlight_max(axis=0))
-    # Basic statistics
-    st.subheader("Basic Statistics")
-    st.write(df.describe())
+    def inverse_transform(self, encoded_labels):
+        return [label for i, label in sorted((i, label) for label, i in self.label_mapping.items())]
 
-
-    # Temperature Conversion Function
-def convert_temperature(df):
-    df["Air temperature [°C]"] = df["Air temperature [K]"] - 272.15
-    df["Process temperature [°C]"] = df["Process temperature [K]"] - 272.15
-    df["Temperature difference [°C]"] = df["Process temperature [°C]"] - df["Air temperature [°C]"]
-    df.drop(columns=["Air temperature [K]", "Process temperature [K]"], inplace=True)
+# Function to load dataset
+def load_dataset():
+    df = pd.read_csv('machininfo.csv')
     return df
 
-# Convert Temperature
-converted_df = convert_temperature(df)
+# Function to preprocess data
+def preprocess_data(df):
+    # Encoding categorical features
+    custom_label_encoder = CustomLabelEncoder()
+    custom_label_encoder.fit(df['Type'])
+    df['Type'] = custom_label_encoder.transform(df['Type'])
 
-# Display Converted DataFrame
-st.subheader("Converted Temperature from K to C in DataFrame")
-st.write(converted_df)
+    # Drop unnecessary columns
+    df.drop(columns=['UDI', 'Product ID'], inplace=True)
 
-# Display Histograms
-st.subheader("Column Trends - Histograms")
+    return df
 
-# Create subplots for all histograms
-fig, axes = plt.subplots(nrows=len(df.columns), ncols=1, figsize=(8, 6 * len(df.columns)))
+# Function to train Random Forest Classifier
+def train_model(df):
+    X = df.drop(columns=["Failure Type"], axis=1)
+    y = df["Failure Type"]
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    model = RandomForestClassifier(n_estimators=100, random_state=42)
+    model.fit(X_train, y_train)
+    return model
 
-# Plot histograms using matplotlib and seaborn
-for i, column in enumerate(df.columns):
-    sns.histplot(df[column], ax=axes[i  ], kde=True)
-    axes[i].set_title(f"Histogram for {column}")
+def main():
+    # Title of the web app
+    st.title("Predictive Maintenance App")
 
-# Adjust layout and spacing
-plt.tight_layout()
+    # Load the dataset
+    df = load_dataset()
 
-# Display the entire figure using st.pyplot
-st.pyplot(fig)
+    # Preprocess the data
+    df = preprocess_data(df)
+
+    # Train the model
+    model = train_model(df)
+
+    # Create dashboard layout
+    st.sidebar.title("Dashboard")
+
+    # Add components to the sidebar
+    st.sidebar.subheader("Navigation")
+    selected_page = st.sidebar.radio("", ["Overview", "Dataset Details", "Data Visualization", "Predict"])
+
+    # Page content
+    if selected_page == "Overview":
+        st.subheader("Overview")
+        st.write("Welcome to the Predictive Maintenance App!")
+        st.write("This dashboard provides an overview of the dataset and trained model.")
+
+    elif selected_page == "Dataset Details":
+        st.subheader("Dataset Details")
+        st.write("### Dataset Preview:")
+        st.write(df.head())
+
+        with st.expander("Details"):
+            st.write("#### Dataset Shape:")
+            st.write(df.shape)
+
+            st.write("#### Dataset Description:")
+            st.write(df.describe())
+
+    elif selected_page == "Data Visualization":
+        st.subheader("Data Visualization")
+        st.write("### Select Visualization Type:")
+
+        # Add visualization options here
+
+    elif selected_page == "Predict":
+        st.subheader("Predictive Maintenance")
+
+        # Input form for user to enter metrics
+        st.write("### Enter Input Metrics:")
+        input_metrics = {}
+        for column in df.columns:
+            if column != 'Failure Type':  # Exclude target column
+                input_metrics[column] = st.number_input(f"{column}", value=0)
+
+        # Make prediction
+        if st.button("Predict"):
+            input_data = pd.DataFrame([input_metrics])
+            prediction = model.predict(input_data)
+
+            # Decode predicted failure type
+            custom_label_encoder = CustomLabelEncoder()
+            custom_label_encoder.fit(df['Failure Type'])
+            prediction_label = custom_label_encoder.inverse_transform(prediction)
+
+            st.write("### Prediction:")
+            st.write(prediction_label)
+
 if __name__ == "__main__":
     main()
+
