@@ -120,7 +120,7 @@ def main():
 
         # Display dataset preview
         st.write("### Dataset Preview:")
-        st.write(df.head())
+        st.write(df)
 
         # Display dataset shape and description
         st.write("### Dataset Information:")
